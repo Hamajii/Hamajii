@@ -1,0 +1,7 @@
+# Dependências para o script standalone de preview de pose (extract_pose.py).
+# Independentes do ambiente venv do ComfyUI (pode instalar num venv próprio).
+opencv-python>=4.9
+numpy>=1.25
+Pillow>=10.0
+tqdm>=4.66
+controlnet-aux>=0.0.9

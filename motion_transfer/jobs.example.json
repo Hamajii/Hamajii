@@ -1,0 +1,12 @@
+[
+  {
+    "pose_video": "poses/cena1_pose.mp4",
+    "prompt": "a knight in silver armor walking through a misty forest, cinematic lighting, highly detailed",
+    "output_prefix": "cena1_cavaleiro"
+  },
+  {
+    "pose_video": "poses/cena2_pose.mp4",
+    "prompt": "a astronaut dancing on the moon, dramatic lighting, sci-fi",
+    "output_prefix": "cena2_astronauta"
+  }
+]
