@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Saída gerada (áudios, imagens, vídeos, manifest de progresso)
+output/*
+!output/.gitkeep
+
+# Credenciais do YouTube (NUNCA versionar)
+credentials/*
+!credentials/.gitkeep
