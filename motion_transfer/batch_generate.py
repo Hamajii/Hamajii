@@ -45,12 +45,22 @@ class ComfyUIClient:
 
 
 def load_jobs(jobs_path: Path) -> list[dict]:
-    """Cada job no JSON deve ter: {"pose_video": "...", "prompt": "...", "output_prefix": "..."}."""
+    """Cada job no JSON deve ter:
+    {"pose_video": "...", "character_image": "...", "prompt": "...", "output_prefix": "..."}.
+
+    `character_image` é opcional por job: se omitido, mantém a imagem já
+    carregada no nó "Load Image" do workflow base.
+    """
     return json.loads(jobs_path.read_text())
 
 
 def apply_job_to_workflow(
-    base_workflow: dict, job: dict, pose_node_id: str, prompt_node_id: str, output_node_id: str
+    base_workflow: dict,
+    job: dict,
+    pose_node_id: str,
+    prompt_node_id: str,
+    output_node_id: str,
+    image_node_id: str | None = None,
 ) -> dict:
     workflow = copy.deepcopy(base_workflow)
 
@@ -60,6 +70,8 @@ def apply_job_to_workflow(
         workflow[prompt_node_id]["inputs"]["text"] = job["prompt"]
     if output_node_id in workflow and "output_prefix" in job:
         workflow[output_node_id]["inputs"]["filename_prefix"] = job["output_prefix"]
+    if image_node_id and image_node_id in workflow and "character_image" in job:
+        workflow[image_node_id]["inputs"]["image"] = job["character_image"]
 
     return workflow
 
@@ -70,8 +82,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("jobs_json", type=Path, help="Lista de jobs (vídeo de pose + prompt do personagem)")
     parser.add_argument("--comfyui-url", default="http://127.0.0.1:8188")
     parser.add_argument("--pose-node-id", default="10", help="ID do nó 'Load Video' da pose no grafo")
-    parser.add_argument("--prompt-node-id", default="6", help="ID do nó CLIPTextEncode (prompt positivo)")
+    parser.add_argument("--prompt-node-id", default="6", help="ID do nó CLIPTextEncode (cenário/iluminação)")
     parser.add_argument("--output-node-id", default="20", help="ID do nó de saída de vídeo (VHS_VideoCombine)")
+    parser.add_argument("--image-node-id", default=None, help="ID do nó 'Load Image' do personagem (opcional, só se variar por job)")
     args = parser.parse_args(argv)
 
     base_workflow = json.loads(args.workflow_api_json.read_text())
@@ -81,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Enfileirando {len(jobs)} job(s)...")
     for i, job in enumerate(jobs, start=1):
         workflow = apply_job_to_workflow(
-            base_workflow, job, args.pose_node_id, args.prompt_node_id, args.output_node_id
+            base_workflow, job, args.pose_node_id, args.prompt_node_id, args.output_node_id, args.image_node_id
         )
         prompt_id = client.queue_prompt(workflow)
         print(f"[{i}/{len(jobs)}] enfileirado (prompt_id={prompt_id}), aguardando renderização...")

@@ -44,10 +44,11 @@ manualmente:
 
 → salvar em `custom_nodes/comfyui_controlnet_aux/ckpts/`
 
-## 5. (Opcional) IPAdapter — consistência do personagem
+## 5. IPAdapter — necessário (é o que faz o vídeo seguir sua imagem)
 
-Ajuda a manter a aparência do seu personagem igual em todos os frames,
-usando uma imagem de referência dele.
+Como o personagem vem de uma imagem que você fornece (não de texto), o
+IPAdapter deixou de ser opcional: é o componente que condiciona a geração
+pela aparência dessa imagem.
 
 - **ip-adapter_sd15.bin** —
   https://huggingface.co/h94/IP-Adapter/blob/main/models/ip-adapter_sd15.bin

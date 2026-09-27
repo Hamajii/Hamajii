@@ -64,7 +64,7 @@ clone_node "https://github.com/Fannovel16/comfyui_controlnet_aux.git" "comfyui_c
 # Carregar/combinar vídeo dentro do próprio ComfyUI (entrada e saída de vídeo)
 clone_node "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git" "ComfyUI-VideoHelperSuite"
 
-# IPAdapter (opcional, ajuda a manter a aparência do personagem consistente entre frames)
+# IPAdapter (necessário: condiciona a geração pela imagem do personagem fornecida)
 clone_node "https://github.com/cubiq/ComfyUI_IPAdapter_plus.git" "ComfyUI_IPAdapter_plus"
 
 echo ""

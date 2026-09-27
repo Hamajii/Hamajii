@@ -1,11 +1,26 @@
-# Motion Transfer — animar um personagem próprio com o movimento de um vídeo de referência
+# Motion Transfer — animar sua imagem gerada por IA com o movimento de um vídeo de referência
 
-Pipeline open-source (ComfyUI + AnimateDiff + ControlNet) pra extrair a
-**pose/movimento de corpo inteiro** de um vídeo de referência e aplicar esse
-movimento num personagem/cena totalmente novos, gerados por IA — sem
+Pipeline open-source (ComfyUI + AnimateDiff + ControlNet + IPAdapter) que
+pega:
+
+1. uma **imagem** do seu personagem (que você mesmo gera por IA em outra
+   ferramenta e entra aqui como referência), e
+2. o **movimento** extraído de um vídeo de referência (pose de corpo inteiro),
+
+e gera um vídeo do seu personagem executando aquele movimento — sem
 reutilizar as imagens originais do vídeo de referência.
 
 Ajustado para GPUs de **8GB de VRAM ou menos** (RTX 3050/3060 8GB, RTX 2070).
+
+**Importante sobre fidelidade à imagem:** com esse conjunto de modelos
+(SD1.5 + IPAdapter), o resultado fica *parecido* com sua imagem (rosto,
+roupa, paleta, estilo), mas não é um clone pixel-perfeito em cada frame —
+modelos de vídeo baseados em SD1.5 recriam a cena a cada frame guiados pela
+sua imagem de referência, não "recortam e colam" ela. Existe uma classe de
+modelos feita especificamente pra fidelidade maior a uma imagem única
+(MimicMotion, MusePose) — ver seção **"Alternativa de maior fidelidade"**
+no fim deste README — mas eles pedem tipicamente 16GB+ de VRAM, então
+comece por aqui e migre só se precisar.
 
 ## Sobre o vídeo de referência (leia antes)
 
@@ -32,7 +47,8 @@ Isso clona o ComfyUI + instala os custom nodes:
 - `ComfyUI-Advanced-ControlNet` (condicionamento por pose)
 - `comfyui_controlnet_aux` (extração de pose DWPose a partir do vídeo)
 - `ComfyUI-VideoHelperSuite` (carregar vídeo de entrada / exportar vídeo de saída)
-- `ComfyUI_IPAdapter_plus` (opcional — ajuda a manter o personagem consistente)
+- `ComfyUI_IPAdapter_plus` (**necessário** — é o que faz o vídeo seguir a
+  aparência da sua imagem, não só o texto do prompt)
 
 Depois baixe os modelos listados em **`models.md`** e coloque nas pastas indicadas.
 
@@ -68,30 +84,38 @@ validado e o reusa/automatiza.
 
 Abra `http://127.0.0.1:8188` e monte os nós nesta ordem:
 
-1. **Load Video (Upload)** *(VideoHelperSuite)* → seu vídeo de referência.
+1. **Load Video (Upload)** *(VideoHelperSuite)* → seu vídeo de referência
+   (fonte do movimento).
 2. **DWPose Estimator** *(comfyui_controlnet_aux)* → conecta na saída do passo 1.
    Isso gera o vídeo-esqueleto que guia o movimento.
-3. **Load Checkpoint** → seu checkpoint SD1.5 (ex: DreamShaper 8).
-4. **CLIP Text Encode (Prompt)** → descreva o personagem/cena novos
-   (ex: *"a knight in silver armor walking through a misty forest, cinematic
-   lighting"*). Outro nó igual para o prompt negativo (ex: *"blurry, extra
-   limbs, deformed"*).
-5. **AnimateDiff Loader** *(ComfyUI-AnimateDiff-Evolved)* → conecta no model
-   do checkpoint; carrega `mm_sd_v15_v2.ckpt`.
-6. **Apply ControlNet (Advanced)** *(ComfyUI-Advanced-ControlNet)* → recebe
+3. **Load Image** → carregue aqui a **imagem do seu personagem** (a que você
+   gerou por IA). Essa é a referência de identidade — o que faz o resultado
+   parecer com o seu personagem.
+4. **Load Checkpoint** → seu checkpoint SD1.5 (ex: DreamShaper 8).
+5. **IPAdapter Unified Loader** + **Apply IPAdapter (Advanced)**
+   *(ComfyUI_IPAdapter_plus)* → conecta a imagem do passo 3 e o model do
+   checkpoint. Use `weight` entre **0.7 e 1.0** (quanto mais alto, mais fiel
+   à sua imagem — mas alto demais engessa o movimento; ajuste testando).
+6. **CLIP Text Encode (Prompt)** → aqui o texto vira só apoio de **cenário/
+   iluminação**, não mais a descrição do personagem (ex: *"misty forest,
+   cinematic lighting, high detail"*, já que o personagem já vem da imagem).
+   Outro nó igual para o prompt negativo (ex: *"blurry, extra limbs,
+   deformed, different person"*).
+7. **AnimateDiff Loader** *(ComfyUI-AnimateDiff-Evolved)* → conecta no model
+   (já com IPAdapter aplicado); carrega `mm_sd_v15_v2.ckpt`.
+8. **Apply ControlNet (Advanced)** *(ComfyUI-Advanced-ControlNet)* → recebe
    o vídeo-esqueleto do passo 2 como imagem de controle, e o
    `control_v11p_sd15_openpose.pth` como modelo de controlnet.
-7. **(Opcional) IPAdapter** → se quiser manter a aparência do personagem
-   consistente, carregue uma imagem de referência dele aqui.
-8. **KSampler** → conecta model (com AnimateDiff aplicado), positive/negative
-   conditioning (com ControlNet aplicado), latent vazio do tamanho da sua
-   resolução escolhida.
-9. **VAE Decode (Tiled)** → decodifica os frames gerados.
-10. **Video Combine** *(VideoHelperSuite)* → junta os frames num `.mp4` final,
+9. **KSampler** → conecta model (IPAdapter + AnimateDiff aplicados),
+   positive/negative conditioning (com ControlNet aplicado), latent vazio do
+   tamanho da sua resolução escolhida.
+10. **VAE Decode (Tiled)** → decodifica os frames gerados.
+11. **Video Combine** *(VideoHelperSuite)* → junta os frames num `.mp4` final,
     no mesmo fps do vídeo de referência.
 
-Clique **Queue Prompt** e valide o resultado. Ajuste prompt/parâmetros até
-ficar bom.
+Clique **Queue Prompt** e valide o resultado. Se o personagem sair parecido
+mas "genérico demais", suba o `weight` do IPAdapter; se sair travado/sem
+seguir bem o movimento, desça um pouco.
 
 ## 4. Preview rápido da extração de pose (opcional)
 
@@ -111,20 +135,41 @@ inteiro visível e sem cortes de câmera bruscos.
 ## 5. Automatizar em lote (depois de validar o workflow)
 
 No ComfyUI, menu **Workflow → Export (API Format)** → salve como
-`workflow_api.json`. Descubra os IDs dos nós de vídeo-de-pose, prompt e saída
-(aparecem no JSON exportado) e ajuste `jobs.example.json` com seus próprios
-vídeos de pose + prompts de personagem, depois:
+`workflow_api.json`. Descubra os IDs dos nós de vídeo-de-pose, prompt,
+imagem do personagem e saída (aparecem no JSON exportado) e ajuste
+`jobs.example.json` com seus próprios vídeos de pose + prompts de cenário,
+depois:
 
 ```bash
 python batch_generate.py workflow_api.json jobs.example.json \
     --pose-node-id <ID_DO_LOAD_VIDEO> \
     --prompt-node-id <ID_DO_CLIP_TEXT_ENCODE> \
-    --output-node-id <ID_DO_VIDEO_COMBINE>
+    --output-node-id <ID_DO_VIDEO_COMBINE> \
+    --image-node-id <ID_DO_LOAD_IMAGE>   # só se for trocar o personagem entre jobs
 ```
 
 Isso enfileira cada job no ComfyUI e espera a renderização terminar antes de
 passar pro próximo — evita estourar a VRAM tentando rodar vários ao mesmo
 tempo.
+
+## Alternativa de maior fidelidade (MimicMotion / MusePose)
+
+Se o resultado do IPAdapter não estiver parecido o suficiente com sua
+imagem, existe uma categoria de modelos feita exatamente pra isso — recebem
+**uma imagem de referência + uma sequência de pose** e geram vídeo mantendo
+a identidade da imagem com muito mais fidelidade que IPAdapter (é o
+propósito central do modelo, não um acessório).
+
+- **MimicMotion** (Tencent) — https://github.com/Tencent/MimicMotion
+- Wrapper para ComfyUI — https://github.com/kijai/ComfyUI-MimicMotionWrapper
+
+⚠️ **Aviso de VRAM:** é baseado em Stable Video Diffusion, uma arquitetura
+mais pesada que SD1.5. A documentação oficial recomenda ~16GB de VRAM na
+configuração padrão. Em 8GB é bem provável esbarrar em `CUDA out of memory`
+mesmo reduzindo resolução/frames — pode funcionar em resoluções bem baixas
+(ex: 384×576) e poucos frames por lote, mas com bastante tentativa e erro.
+Vale testar depois de validar o caminho principal (IPAdapter), não como
+primeiro passo.
 
 ## Encaixe com o pipeline dos Salmos
 
